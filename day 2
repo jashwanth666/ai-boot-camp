@@ -1,0 +1,85 @@
+from langchain.document_loaders import PyPDFLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from datetime import datetime
+
+
+def load_pdfs(file_paths):
+    documents = []
+    for path in file_paths:
+        loader = PyPDFLoader(path)
+        docs = loader.load()
+        documents.extend(docs)
+    return documents
+
+
+def split_documents(documents):
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=200
+    )
+    chunks = splitter.split_documents(documents)
+    return chunks
+
+
+def attach_metadata(chunks, source_type="general"):
+    upload_date = datetime.now().strftime("%Y-%m-%d")
+
+    for chunk in chunks:
+        filename = chunk.metadata.get("source", "unknown").split("/")[-1]
+        page_number = chunk.metadata.get("page", "unknown")
+
+        chunk.metadata["filename"] = filename
+        chunk.metadata["page_number"] = page_number
+        chunk.metadata["upload_date"] = upload_date
+        chunk.metadata["source_type"] = source_type
+
+    return chunks
+
+
+def filter_chunks(chunks, **filters):
+    filtered = []
+
+    for chunk in chunks:
+        match = True
+        for key, value in filters.items():
+            if chunk.metadata.get(key) != value:
+                match = False
+                break
+        if match:
+            filtered.append(chunk)
+
+    return filtered
+
+
+if __name__ == "__main__":
+    pdf_files = [
+        "sample1.pdf",
+        "sample2.pdf"
+    ]
+
+    print("Loading PDFs...")
+    documents = load_pdfs(pdf_files)
+    print(f"Loaded {len(documents)} pages")
+
+    print("Splitting into chunks...")
+    chunks = split_documents(documents)
+    print(f"Created {len(chunks)} chunks")
+
+    print("Attaching metadata...")
+    chunks = attach_metadata(chunks, source_type="research_paper")
+
+    print("Sample Metadata:")
+    print(chunks[0].metadata)
+
+    test_filename = chunks[0].metadata["filename"]
+    test_page = chunks[0].metadata["page_number"]
+
+    filtered = filter_chunks(
+        chunks,
+        filename=test_filename,
+        page_number=test_page
+    )
+
+    print(f"Filtered {len(filtered)} chunks")
+    if filtered:
+        print(filtered[0].page_content[:300])
